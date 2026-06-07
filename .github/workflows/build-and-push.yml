@@ -1,0 +1,117 @@
+name: Build and Push to ECR
+
+# 手動実行のみ。実行時にイメージタグを指定する。
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "ECR に付与するイメージタグ"
+        required: true
+        default: latest
+      deploy:
+        description: "push 後に ECS へデプロイするか"
+        type: boolean
+        required: true
+        default: true
+
+# OIDC で IAM ロールを AssumeRole するために id-token: write が必須
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  # メインスタック / OIDC スタックの設定と揃えること
+  AWS_REGION: ap-northeast-1
+  ECR_REPOSITORY: fastapi-ecs
+  # ECS デプロイ先(template.yaml の ProjectName 由来の名前と揃える)
+  ECS_CLUSTER: fastapi-ecs-cluster
+  ECS_SERVICE: fastapi-ecs-service
+  ECS_CONTAINER: fastapi-ecs-container
+  TASK_DEF_FILE: task-definition.json
+
+jobs:
+  build-and-push:
+    name: Build and push image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # OIDC トークンで IAM ロールを引き受ける(長期キー不要)
+      - name: Configure AWS credentials
+        id: creds
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 指定タグと commit SHA の2つを付けて push する。
+      # Fargate は X86_64 のため platforms は linux/amd64 固定。
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64
+          provenance: false
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ inputs.image_tag }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ---- ここから ECS デプロイ(deploy=true のときのみ) ----
+
+      # task-definition.json 内の ${AWS_ACCOUNT_ID} / ${AWS_REGION} を実値に展開。
+      # アカウント ID は OIDC 認証時に取得済みの値を使うためリポジトリに埋め込まない。
+      - name: Render task definition placeholders
+        if: ${{ inputs.deploy }}
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.creds.outputs.aws-account-id }}
+        run: |
+          envsubst < "$TASK_DEF_FILE" > task-definition.rendered.json
+          echo "--- rendered task definition ---"
+          cat task-definition.rendered.json
+
+      # push したイメージ URI をタスク定義の image に差し込む
+      - name: Fill in new image ID
+        if: ${{ inputs.deploy }}
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.rendered.json
+          container-name: ${{ env.ECS_CONTAINER }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ inputs.image_tag }}
+
+      # 新リビジョンを登録し、サービスを更新して安定するまで待つ
+      - name: Deploy to ECS
+        if: ${{ inputs.deploy }}
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
+      - name: Summary
+        run: |
+          {
+            echo "### Pushed images"
+            echo ""
+            echo "- \`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ inputs.image_tag }}\`"
+            echo "- \`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}\`"
+            echo ""
+            if [ "${{ inputs.deploy }}" = "true" ]; then
+              echo "Deployed to ECS service \`${{ env.ECS_SERVICE }}\` (cluster \`${{ env.ECS_CLUSTER }}\`)."
+            else
+              echo "Deploy skipped (deploy=false)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

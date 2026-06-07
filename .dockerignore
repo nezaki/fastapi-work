@@ -1,0 +1,15 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.python-version
+.vscode
+.claude
+.idea
+cloudformation
+README.md
+Dockerfile
+.dockerignore

@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "aws-api": {
+      "command": "uvx",
+      "args": ["awslabs.aws-api-mcp-server@latest"],
+      "env": {
+        "AWS_API_MCP_PROFILE_NAME": "default",
+        "AWS_REGION": "ap-northeast-1",
+        "READ_OPERATIONS_ONLY": "false",
+        "REQUIRE_MUTATION_CONSENT": "true",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "aws-documentation": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": {
+        "AWS_DOCUMENTATION_PARTITION": "aws",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "aws-ecs": {
+      "command": "uvx",
+      "args": ["--from", "awslabs-ecs-mcp-server@latest", "ecs-mcp-server"],
+      "env": {
+        "AWS_PROFILE": "default",
+        "AWS_REGION": "ap-northeast-1",
+        "ALLOW_WRITE": "false",
+        "ALLOW_SENSITIVE_DATA": "false",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/"
+    }
+  }
+}

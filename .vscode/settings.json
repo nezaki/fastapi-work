@@ -1,0 +1,26 @@
+{
+  // このプロジェクトの uv 管理 venv (Python 3.14.5) をエディタの既定インタープリタにする
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+
+  // 新しい統合ターミナルを開いたとき .venv を自動で有効化する
+  "python.terminal.activateEnvironment": true,
+
+  // pytest を使う設定（uv add --dev pytest 後に有効化される）
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestArgs": ["tests"],
+
+  // 仮想環境やキャッシュをエクスプローラ／検索から隠す
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true
+  },
+  "search.exclude": {
+    "**/.venv": true
+  },
+
+  // 保存時に末尾空白除去・改行付与（Python以外も含む基本整形）
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}

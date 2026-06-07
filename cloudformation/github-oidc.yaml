@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  GitHub Actions から OIDC で AssumeRole するための IAM ロール。
+  ECR への push 権限と ECS デプロイ権限を最小限で付与する。
+  OIDC プロバイダは新規作成 / 既存利用を切り替え可能。
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: fastapi-ecs
+    Description: ECR リポジトリ名(メインスタックの ProjectName と揃える)
+    AllowedPattern: "[a-z0-9-]+"
+
+  GitHubOrg:
+    Type: String
+    Description: GitHub の Organization 名 or ユーザー名(例 my-org)
+
+  GitHubRepo:
+    Type: String
+    Description: GitHub のリポジトリ名(例 fastapi-work)
+
+  GitHubRefPattern:
+    Type: String
+    Default: "*"
+    Description: >
+      AssumeRole を許可する subject の ref 部分。
+      全 ref 許可は "*"、main ブランチのみなら "ref:refs/heads/main"。
+
+  CreateOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >
+      GitHub OIDC プロバイダを新規作成するか。アカウントに既に
+      token.actions.githubusercontent.com のプロバイダがある場合は false にする。
+
+  ExistingOidcProviderArn:
+    Type: String
+    Default: ""
+    Description: CreateOidcProvider=false のとき使用する既存 OIDC プロバイダの ARN
+
+Conditions:
+  ShouldCreateOidcProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        # GitHub OIDC の thumbprint(必須項目。現在 IAM 側は実質検証しないが指定が必要)
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  GitHubActionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-github-actions-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - ShouldCreateOidcProvider
+                - !Ref GitHubOidcProvider
+                - !Ref ExistingOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                # 指定リポジトリ / ref からの実行のみ許可
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOrg}/${GitHubRepo}:${GitHubRefPattern}"
+      Policies:
+        - PolicyName: EcrPushPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # docker login(認証トークン取得)はリソース指定不可のため "*"
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              # 対象リポジトリへの push / pull のみ許可
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource: !Sub "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ProjectName}"
+        # ---- ECS へのデプロイ(タスク定義の登録 + サービス更新)----
+        - PolicyName: EcsDeployPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # RegisterTaskDefinition / DescribeTaskDefinition はリソース指定不可のため "*"
+              - Effect: Allow
+                Action:
+                  - ecs:RegisterTaskDefinition
+                  - ecs:DescribeTaskDefinition
+                Resource: "*"
+              # 対象サービスの更新 / 状態確認のみ許可
+              - Effect: Allow
+                Action:
+                  - ecs:UpdateService
+                  - ecs:DescribeServices
+                Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/${ProjectName}-cluster/${ProjectName}-service"
+              # タスク定義に渡す2つのロールのみ PassRole を許可(ECS タスク用途に限定)
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-task-execution-role"
+                  - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectName}-task-role"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: ecs-tasks.amazonaws.com
+
+Outputs:
+  GitHubActionsRoleArn:
+    Description: GitHub リポジトリの Variables(AWS_ROLE_ARN) に設定する値
+    Value: !GetAtt GitHubActionsRole.Arn
