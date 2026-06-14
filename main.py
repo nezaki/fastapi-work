@@ -5,7 +5,7 @@ app = FastAPI()
 
 @app.get("/")
 def read_root():
-    return {"message": "Hello from fastapi-ecs-practice!"}
+    return {"message": "Hello from fastapi-ecs-practice! verup"}
 
 
 @app.get("/health")
