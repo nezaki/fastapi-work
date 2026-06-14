@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # OIDC トークンで IAM ロールを引き受ける(長期キー不要)
       - name: Configure AWS credentials
@@ -60,12 +60,12 @@ jobs:
         run: echo "value=${{ inputs.image_tag || github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # 解決済みタグと commit SHA を付けて push(ECR は IMMUTABLE のため毎回ユニーク)。
       # タスク定義(template.yaml)が ARM64 のため platforms は linux/arm64 固定。
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
