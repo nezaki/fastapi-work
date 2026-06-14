@@ -13,3 +13,7 @@ cloudformation
 README.md
 Dockerfile
 .dockerignore
+.DS_Store
+.mcp.json
+.github
+task-definition.json

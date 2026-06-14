@@ -6,7 +6,7 @@
   "memory": "512",
   "runtimePlatform": {
     "operatingSystemFamily": "LINUX",
-    "cpuArchitecture": "X86_64"
+    "cpuArchitecture": "ARM64"
   },
   "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/fastapi-ecs-task-execution-role",
   "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/fastapi-ecs-task-role",

@@ -12,10 +12,7 @@
       "Bash(find:*)",
       "Bash(echo:*)",
       "Bash(docker info *)",
-      "Bash(docker version *)",
-      "Bash(aws cloudformation *)",
-      "Bash(colima status *)",
-      "Bash(colima start *)"
+      "Bash(docker version *)"
     ],
     "deny": [
       "Read(./.env)",
