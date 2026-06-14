@@ -21,10 +21,11 @@ Parameters:
 
   GitHubRefPattern:
     Type: String
-    Default: "*"
+    Default: "ref:refs/heads/main"
     Description: >
       AssumeRole を許可する subject の ref 部分。
-      全 ref 許可は "*"、main ブランチのみなら "ref:refs/heads/main"。
+      既定は main ブランチのみ許可。全 ref を許可するなら "*" を指定する
+      (デプロイ権限を持つロールのため広げる際は影響を理解した上で)。
 
   CreateOidcProvider:
     Type: String

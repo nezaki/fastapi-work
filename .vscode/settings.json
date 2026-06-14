@@ -5,16 +5,9 @@
   // 新しい統合ターミナルを開いたとき .venv を自動で有効化する
   "python.terminal.activateEnvironment": true,
 
-  // pytest を使う設定（uv add --dev pytest 後に有効化される）
-  "python.testing.pytestEnabled": true,
-  "python.testing.unittestEnabled": false,
-  "python.testing.pytestArgs": ["tests"],
-
   // 仮想環境やキャッシュをエクスプローラ／検索から隠す
   "files.exclude": {
-    "**/__pycache__": true,
-    "**/.pytest_cache": true,
-    "**/.ruff_cache": true
+    "**/__pycache__": true
   },
   "search.exclude": {
     "**/.venv": true

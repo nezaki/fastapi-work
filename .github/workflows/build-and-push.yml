@@ -5,9 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: "ECR に付与するイメージタグ"
-        required: true
-        default: latest
+        description: "ECR タグ(空なら commit SHA を使用)。ECR は IMMUTABLE のため毎回ユニークにすること"
+        required: false
+        default: ""
       deploy:
         description: "push 後に ECS へデプロイするか"
         type: boolean
@@ -18,6 +18,11 @@ on:
 permissions:
   id-token: write
   contents: read
+
+# 同一ワークフローの同時実行を直列化し、ECR push / ECS デプロイの競合を防ぐ
+concurrency:
+  group: build-and-push
+  cancel-in-progress: false
 
 env:
   # メインスタック / OIDC スタックの設定と揃えること
@@ -49,10 +54,15 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Resolve image tag
+        id: tag
+        # 入力が空なら commit SHA を採用(ECR IMMUTABLE 前提の不変タグ運用)
+        run: echo "value=${{ inputs.image_tag || github.sha }}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # 指定タグと commit SHA の2つを付けて push する。
+      # 解決済みタグと commit SHA を付けて push(ECR は IMMUTABLE のため毎回ユニーク)。
       # タスク定義(template.yaml)が ARM64 のため platforms は linux/arm64 固定。
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -63,7 +73,7 @@ jobs:
           platforms: linux/arm64
           provenance: false
           tags: |
-            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ inputs.image_tag }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.value }}
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -89,7 +99,7 @@ jobs:
         with:
           task-definition: task-definition.rendered.json
           container-name: ${{ env.ECS_CONTAINER }}
-          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ inputs.image_tag }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.value }}
 
       # 新リビジョンを登録し、サービスを更新して安定するまで待つ
       - name: Deploy to ECS
@@ -106,7 +116,7 @@ jobs:
           {
             echo "### Pushed images"
             echo ""
-            echo "- \`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ inputs.image_tag }}\`"
+            echo "- \`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.value }}\`"
             echo "- \`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}\`"
             echo ""
             if [ "${{ inputs.deploy }}" = "true" ]; then
