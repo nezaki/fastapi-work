@@ -198,11 +198,11 @@ Resources:
             "rules": [
               {
                 "rulePriority": 1,
-                "description": "Keep only the last 10 images",
+                "description": "Keep only the last 3 images",
                 "selection": {
                   "tagStatus": "any",
                   "countType": "imageCountMoreThan",
-                  "countNumber": 10
+                  "countNumber": 3
                 },
                 "action": { "type": "expire" }
               }

@@ -28,7 +28,7 @@ FastAPI の最小 API を **Docker イメージ化 → Amazon ECR → ECS (Farga
 - **ネットワーク**: VPC + Public サブネット 2AZ。コスト抑制のため **NAT Gateway なし**(タスクは Public サブネット + Public IP で ECR / インターネットへ到達)。
 - **ALB**: HTTP:80 を受けて Target Group(`/health` ヘルスチェック)へ転送。
 - **ECS**: Fargate / **ARM64**。Circuit Breaker による自動ロールバック有効。
-- **ECR**: イメージスキャン有効・`IMMUTABLE`・直近 10 世代のみ保持。
+- **ECR**: イメージスキャン有効・`IMMUTABLE`・直近 3 世代のみ保持。
 - **CI/CD**: GitHub Actions(手動実行)で ARM64 ビルド → ECR push →(任意で)ECS デプロイ。
 
 ## エンドポイント
