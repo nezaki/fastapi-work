@@ -35,12 +35,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # OIDC トークンで IAM ロールを引き受ける(長期キー不要)
       - name: Configure AWS credentials
         id: creds
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -53,14 +53,14 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # 指定タグと commit SHA の2つを付けて push する。
-      # Fargate は X86_64 のため platforms は linux/amd64 固定。
+      # タスク定義(template.yaml)が ARM64 のため platforms は linux/arm64 固定。
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
-          platforms: linux/amd64
+          platforms: linux/arm64
           provenance: false
           tags: |
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ inputs.image_tag }}
