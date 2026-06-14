@@ -21,6 +21,11 @@ uv run cfn-lint cloudformation/template.yaml cloudformation/github-oidc.yaml
 
 # Docker ビルド(必ず ARM64)
 docker build --platform linux/arm64 -t fastapi-work .
+
+# 停止 / 起動 / 状態確認(ALB と ECS サービスを Enabled フラグで切替)
+./scripts/stop.sh     # ALB と ECS サービスを削除して固定費を止める
+./scripts/start.sh    # ALB と ECS サービスを再作成(ECR の最新タグを自動採用)
+./scripts/status.sh   # 現在の停止/起動状態を表示(読み取りのみ)
 ```
 
 デプロイ手順の一次情報は [cloudformation/README.md](cloudformation/README.md)。

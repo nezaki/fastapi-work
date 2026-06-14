@@ -119,6 +119,36 @@ aws cloudformation deploy \
 
 > 通常はこの手動手順ではなく GitHub Actions（後述）で更新します。CD は稼働中のタスク定義を取得して `image` だけ差し替えるため、タグや `ImageTag` を意識する必要はありません。
 
+## コスト削減: 停止と起動
+
+使わない時間帯はリソースを止めて費用を抑えられます。アイドル時の固定費は **Fargate タスクより ALB の方が大きい**ため、停止スクリプトは **ALB と ECS サービスの両方**を削除します。
+
+| リソース | 課金 | 停止後 |
+| --- | --- | --- |
+| ALB | 起動中ずっと固定課金(月 ~$16〜20 + LCU) | 削除され停止 |
+| Fargate タスク | 稼働時間課金 | `DesiredCount=0` で削除され停止 |
+| VPC / ECR / IAM / クラスター / ログ / タスク定義 | 無料〜僅少 | 残す(再開を速くするため) |
+
+仕組み: [template.yaml](template.yaml) の `Enabled` パラメータ(Condition `IsEnabled`)で、ALB / TargetGroup / Listener / ECS サービスの作成有無を切り替えます。CLI で直接削除せず **CloudFormation に作成/削除させる**ため、スタックのドリフトは発生しません。
+
+```bash
+# 停止(ALB と ECS サービスを削除して固定費を止める)
+./scripts/stop.sh
+
+# 起動(ALB と ECS サービスを再作成。ECR の最新タグを自動採用)
+./scripts/start.sh
+# タグを明示する場合: ./scripts/start.sh <commit-sha>
+
+# 現在の状態を確認(読み取りのみ)
+./scripts/status.sh
+```
+
+> [!IMPORTANT]
+> - **再開のたびに ALB を作り直すため、エンドポイントの DNS 名が変わります。** 固定したい場合は別途 Route 53 などで名前を当ててください。
+> - ECR は `IMMUTABLE` 運用で `latest` タグが無いため、`start.sh` は ECR の最新イメージタグを自動検出して `ImageTag` に渡します(イメージが1つも無いと失敗します)。
+> - **停止中(`Enabled=false`)は ECS サービスが存在しない**ため、GitHub Actions の `deploy=true` は失敗します。停止中にイメージだけ更新したい場合は `deploy=false` で push し、再開後に最新タグで `start.sh` してください。
+> - スクリプトは region=`ap-northeast-1` / project=`fastapi-ecs` を既定とします。異なる場合は環境変数 `AWS_REGION` / `PROJECT` で上書きできます。
+
 ## 後片付け
 
 ```bash

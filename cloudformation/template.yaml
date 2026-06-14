@@ -65,6 +65,23 @@ Parameters:
     Default: 14
     Description: CloudWatch Logs の保持日数
 
+  Enabled:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >
+      課金リソース(ALB / TargetGroup / Listener / ECS サービス)を作成するか。
+      false にすると ALB と Fargate タスクが削除され、固定費(主に ALB)が止まる。
+      ネットワーク / ECR / IAM / クラスター / ログ / タスク定義は常に残す。
+      停止/起動は scripts/stop.sh・scripts/start.sh で切り替える。
+
+# ---------------------------------------------------------------------------
+# Conditions
+# ---------------------------------------------------------------------------
+Conditions:
+  # Enabled=true のときだけ課金リソースを作成する(停止/起動の切り替えに使用)
+  IsEnabled: !Equals [!Ref Enabled, "true"]
+
 # ---------------------------------------------------------------------------
 # Resources
 # ---------------------------------------------------------------------------
@@ -286,6 +303,7 @@ Resources:
   # ---------------------- ALB ----------------------
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Condition: IsEnabled
     Properties:
       Name: !Sub "${ProjectName}-alb"
       Type: application
@@ -302,6 +320,7 @@ Resources:
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: IsEnabled
     Properties:
       Name: !Sub "${ProjectName}-tg"
       VpcId: !Ref Vpc
@@ -323,6 +342,7 @@ Resources:
 
   HttpListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: IsEnabled
     Properties:
       LoadBalancerArn: !Ref LoadBalancer
       Port: 80
@@ -333,6 +353,7 @@ Resources:
 
   EcsService:
     Type: AWS::ECS::Service
+    Condition: IsEnabled
     # リスナーが先に作られていないとターゲット登録に失敗するため依存を明示
     DependsOn: HttpListener
     Properties:
@@ -369,6 +390,7 @@ Resources:
 # ---------------------------------------------------------------------------
 Outputs:
   LoadBalancerUrl:
+    Condition: IsEnabled
     Description: API のエンドポイント URL
     Value: !Sub "http://${LoadBalancer.DNSName}"
 
@@ -381,5 +403,6 @@ Outputs:
     Value: !Ref EcsCluster
 
   EcsServiceName:
+    Condition: IsEnabled
     Description: ECS サービス名
     Value: !GetAtt EcsService.Name
