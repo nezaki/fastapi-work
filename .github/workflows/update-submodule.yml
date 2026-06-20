@@ -1,0 +1,50 @@
+name: サブモジュール自動更新
+
+# .claude が更新されたら親のポインタを最新化する PR を作成
+# - repository_dispatch: nezaki/claude 側の通知ワークフローから発火(リアルタイム)
+# - workflow_dispatch: 手動実行
+on:
+  repository_dispatch:
+    types: [submodule-update]
+  workflow_dispatch:
+
+# GITHUB_TOKEN で PR を作るために必要
+permissions:
+  contents: write
+  pull-requests: write
+
+# PR ブランチの競合を避けるため直列化(既存 build-and-push.yml に倣う)
+concurrency:
+  group: update-submodule
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: サブモジュールを最新化して PR 作成
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: .claude を最新の main に更新
+        id: update
+        run: |
+          # SSH 形式の URL を HTTPS に書き換え(public のためトークン不要)
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          # .gitmodules の branch=main を追跡して最新コミットへ
+          git submodule update --init --remote .claude
+          echo "new_sha=$(git -C .claude rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: main
+          branch: chore/update-claude-submodule
+          delete-branch: true
+          commit-message: ".claude サブモジュールのポインタを ${{ steps.update.outputs.new_sha }} に更新"
+          title: ".claude サブモジュールを最新に更新"
+          body: |
+            サブモジュール `.claude` を最新の `main`(`${{ steps.update.outputs.new_sha }}`)に更新します。
+
+            このPRは `サブモジュール自動更新` ワークフローにより自動作成されました。
