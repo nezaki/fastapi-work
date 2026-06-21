@@ -5,11 +5,11 @@ description = "FastAPI の最小 API を ECS Fargate + ALB にデプロイする
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.137.0",
+    "fastapi>=0.138.0",
     "uvicorn[standard]>=0.49.0",
 ]
 
 [dependency-groups]
 dev = [
-    "cfn-lint>=1.51.4",
+    "cfn-lint>=1.51.5",
 ]

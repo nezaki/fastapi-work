@@ -86,7 +86,7 @@ wheels = [
 
 [[package]]
 name = "cfn-lint"
-version = "1.51.4"
+version = "1.51.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aws-sam-translator" },
@@ -97,9 +97,9 @@ dependencies = [
     { name = "sympy" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/22/7d/77cb6921776aff87b261a48610b977b1f3d790c2caee9d6d8c6d251329d1/cfn_lint-1.51.4.tar.gz", hash = "sha256:d37c48645e03abecfd826b8588103b06991abd838fe05c641f2853812289c021", size = 4156267, upload-time = "2026-06-03T15:17:06.006Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/05/69/d9e8f555ded51061f73aa2cfbe30b0b6d5273724f5563655f6dc8b77ecdd/cfn_lint-1.51.5.tar.gz", hash = "sha256:018a00f1f9eeadc196afbdc0ac8c6221c29411747c8dcff2f431d48d4080c83b", size = 4114038, upload-time = "2026-06-15T21:58:13.885Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/26/7f/a541df327c5c25c4e59e8bc35961f6c244837f9d0f3f2f22f94272e5fd11/cfn_lint-1.51.4-py3-none-any.whl", hash = "sha256:4897321a7d90c6e48859fde0c7c7c3c919815a947ddc85d0584dc12ad5bc544c", size = 6162327, upload-time = "2026-06-03T15:17:03.659Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/18/f881634f7a03ca3914f8943ed4aa46a5f64fb121c99b983c663760931674/cfn_lint-1.51.5-py3-none-any.whl", hash = "sha256:e17c11a1485a2586c5ddf48d0041f8fa3da3038612fd7dbc559ec87935f53452", size = 6150401, upload-time = "2026-06-15T21:58:11.573Z" },
 ]
 
 [[package]]
@@ -125,7 +125,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.137.0"
+version = "0.138.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -134,9 +134,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/da/fe/fb25c287ff7e0f79fc6acf2e8b812725dad28d2a1446c0410bab1422ac90/fastapi-0.137.0.tar.gz", hash = "sha256:d0565d551f65a803ecff245390840867186f456ef98971f750724eed16e1541c", size = 408023, upload-time = "2026-06-14T12:51:30.672Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5b/58/ff455d9fe47c60abadb34b9e05a304b1f05f5ab8000ac01565156b6f5e43/fastapi-0.138.0.tar.gz", hash = "sha256:d445a4877636ad191e7053e08c9bf98cb921a6756776848400bb773d1740c061", size = 419240, upload-time = "2026-06-20T01:18:05.259Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e7/f1/b38481428e50131e5345b535414d11d196f14990122fe69c9020c64e5683/fastapi-0.137.0-py3-none-any.whl", hash = "sha256:6dcbde8d464f92117c1accb9e42720f8e423fa9b86cb563b1f5862f785a06498", size = 121777, upload-time = "2026-06-14T12:51:29.067Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/ff/8496d9847a5fedae775eb49460722d3efaa80487854273e9647ae876218c/fastapi-0.138.0-py3-none-any.whl", hash = "sha256:b6f54fd1bd72c80b0f899f172c61a600f6f7af9b43d4d772a018f35624048cb0", size = 126779, upload-time = "2026-06-20T01:18:03.483Z" },
 ]
 
 [[package]]
@@ -155,12 +155,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.137.0" },
+    { name = "fastapi", specifier = ">=0.138.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.49.0" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cfn-lint", specifier = ">=1.51.4" }]
+dev = [{ name = "cfn-lint", specifier = ">=1.51.5" }]
 
 [[package]]
 name = "h11"
