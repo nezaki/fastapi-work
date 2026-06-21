@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # OIDC トークンで IAM ロールを引き受ける(長期キー不要)
       - name: Configure AWS credentials
