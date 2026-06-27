@@ -85,7 +85,7 @@ Resources:
               - Effect: Allow
                 Action: ecr:GetAuthorizationToken
                 Resource: "*"
-              # 対象リポジトリへの push / pull のみ許可
+              # 対象リポジトリ(公開 / 内部)への push / pull のみ許可
               - Effect: Allow
                 Action:
                   - ecr:BatchCheckLayerAvailability
@@ -95,7 +95,9 @@ Resources:
                   - ecr:PutImage
                   - ecr:BatchGetImage
                   - ecr:GetDownloadUrlForLayer
-                Resource: !Sub "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ProjectName}"
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ProjectName}"
+                  - !Sub "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ProjectName}-internal"
         # ---- ECS へのデプロイ(タスク定義の登録 + サービス更新)----
         - PolicyName: EcsDeployPolicy
           PolicyDocument:
@@ -107,12 +109,14 @@ Resources:
                   - ecs:RegisterTaskDefinition
                   - ecs:DescribeTaskDefinition
                 Resource: "*"
-              # 対象サービスの更新 / 状態確認のみ許可
+              # 対象サービス(公開 / 内部)の更新 / 状態確認のみ許可
               - Effect: Allow
                 Action:
                   - ecs:UpdateService
                   - ecs:DescribeServices
-                Resource: !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/${ProjectName}-cluster/${ProjectName}-service"
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/${ProjectName}-cluster/${ProjectName}-service"
+                  - !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:service/${ProjectName}-cluster/${ProjectName}-internal-service"
               # タスク定義に渡す2つのロールのみ PassRole を許可(ECS タスク用途に限定)
               - Effect: Allow
                 Action: iam:PassRole

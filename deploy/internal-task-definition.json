@@ -1,5 +1,5 @@
 {
-  "family": "fastapi-ecs-task",
+  "family": "fastapi-ecs-internal-task",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
@@ -17,19 +17,21 @@
   ],
   "containerDefinitions": [
     {
-      "name": "fastapi-ecs-container",
+      "name": "fastapi-ecs-internal-container",
       "image": "PLACEHOLDER_REPLACED_AT_DEPLOY",
       "essential": true,
       "portMappings": [
         {
-          "containerPort": 8000,
-          "protocol": "tcp"
+          "name": "internal",
+          "containerPort": 8001,
+          "protocol": "tcp",
+          "appProtocol": "http"
         }
       ],
       "healthCheck": {
         "command": [
           "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()\" || exit 1"
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health').read()\" || exit 1"
         ],
         "interval": 30,
         "timeout": 5,
@@ -53,7 +55,7 @@
         "options": {
           "awslogs-group": "/ecs/fastapi-ecs",
           "awslogs-region": "${AWS_REGION}",
-          "awslogs-stream-prefix": "ecs"
+          "awslogs-stream-prefix": "internal"
         }
       }
     }

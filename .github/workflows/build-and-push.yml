@@ -32,7 +32,12 @@ env:
   ECS_CLUSTER: fastapi-ecs-cluster
   ECS_SERVICE: fastapi-ecs-service
   ECS_CONTAINER: fastapi-ecs-container
-  TASK_DEF_FILE: task-definition.json
+  TASK_DEF_FILE: deploy/task-definition.json
+  # 内部サービス(Service Connect)用。公開側と同じタグで別 ECR / 別サービスへ展開する
+  ECR_REPOSITORY_INTERNAL: fastapi-ecs-internal
+  ECS_SERVICE_INTERNAL: fastapi-ecs-internal-service
+  ECS_CONTAINER_INTERNAL: fastapi-ecs-internal-container
+  TASK_DEF_FILE_INTERNAL: deploy/internal-task-definition.json
 
 jobs:
   build-and-push:
@@ -78,6 +83,21 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # 内部サービスのイメージも同じタグで別 ECR へ push(start.sh の最新タグ検出と整合させる)
+      - name: Build and push (internal)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile.internal
+          push: true
+          platforms: linux/arm64
+          provenance: false
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_INTERNAL }}:${{ steps.tag.outputs.value }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_INTERNAL }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       # ---- ここから ECS デプロイ(deploy=true のときのみ) ----
 
       # task-definition.json 内の ${AWS_ACCOUNT_ID} / ${AWS_REGION} を実値に展開。
@@ -111,6 +131,35 @@ jobs:
           cluster: ${{ env.ECS_CLUSTER }}
           wait-for-service-stability: true
 
+      # ---- 内部サービス(Service Connect)のデプロイ ----
+
+      - name: Render task definition placeholders (internal)
+        if: ${{ inputs.deploy }}
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.creds.outputs.aws-account-id }}
+        run: |
+          envsubst < "$TASK_DEF_FILE_INTERNAL" > internal-task-definition.rendered.json
+          echo "--- rendered internal task definition ---"
+          cat internal-task-definition.rendered.json
+
+      - name: Fill in new image ID (internal)
+        if: ${{ inputs.deploy }}
+        id: render-internal
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: internal-task-definition.rendered.json
+          container-name: ${{ env.ECS_CONTAINER_INTERNAL }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_INTERNAL }}:${{ steps.tag.outputs.value }}
+
+      - name: Deploy to ECS (internal)
+        if: ${{ inputs.deploy }}
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-internal.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE_INTERNAL }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true
+
       - name: Summary
         run: |
           {
@@ -118,9 +167,11 @@ jobs:
             echo ""
             echo "- \`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.tag.outputs.value }}\`"
             echo "- \`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}\`"
+            echo "- \`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_INTERNAL }}:${{ steps.tag.outputs.value }}\`"
+            echo "- \`${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_INTERNAL }}:${{ github.sha }}\`"
             echo ""
             if [ "${{ inputs.deploy }}" = "true" ]; then
-              echo "Deployed to ECS service \`${{ env.ECS_SERVICE }}\` (cluster \`${{ env.ECS_CLUSTER }}\`)."
+              echo "Deployed to ECS services \`${{ env.ECS_SERVICE }}\` / \`${{ env.ECS_SERVICE_INTERNAL }}\` (cluster \`${{ env.ECS_CLUSTER }}\`)."
             else
               echo "Deploy skipped (deploy=false)."
             fi

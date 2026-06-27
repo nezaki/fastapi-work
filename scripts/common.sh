@@ -9,6 +9,7 @@ PROJECT="${PROJECT:-fastapi-ecs}"
 STACK="${STACK:-$PROJECT}"
 CLUSTER="${CLUSTER:-$PROJECT-cluster}"
 SERVICE="${SERVICE:-$PROJECT-service}"
+INTERNAL_SERVICE="${INTERNAL_SERVICE:-$PROJECT-internal-service}"
 
 # リポジトリ直下を基準に template.yaml の絶対パスを解決する
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

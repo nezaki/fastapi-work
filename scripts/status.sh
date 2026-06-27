@@ -10,8 +10,13 @@ require_aws
 enabled="$(stack_enabled || echo '不明')"
 log "Enabled パラメータ: $enabled  (true=起動 / false=停止)"
 
-echo "--- ECS サービス ---"
+echo "--- ECS サービス(公開)---"
 aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" --region "$AWS_REGION" \
+  --query "services[?status=='ACTIVE'].{Status:status,Desired:desiredCount,Running:runningCount,TaskDef:taskDefinition}" \
+  --output table 2>/dev/null || true
+
+echo "--- ECS サービス(内部 / Service Connect)---"
+aws ecs describe-services --cluster "$CLUSTER" --services "$INTERNAL_SERVICE" --region "$AWS_REGION" \
   --query "services[?status=='ACTIVE'].{Status:status,Desired:desiredCount,Running:runningCount,TaskDef:taskDefinition}" \
   --output table 2>/dev/null || true
 

@@ -23,7 +23,12 @@ Parameters:
   ContainerPort:
     Type: Number
     Default: 8000
-    Description: コンテナ(uvicorn)が待ち受けるポート
+    Description: 公開コンテナ(uvicorn)が待ち受けるポート
+
+  InternalContainerPort:
+    Type: Number
+    Default: 8001
+    Description: 内部サービス(internal_main.py)が待ち受けるポート。Service Connect の公開ポートにもなる
 
   DesiredCount:
     Type: Number
@@ -198,6 +203,17 @@ Resources:
       SourceSecurityGroupId: !Ref AlbSecurityGroup
       Description: From ALB to container port
 
+  # 同一 ECS SG 内のタスク間で内部ポートへの通信を許可(Service Connect の内部通信)
+  EcsSecurityGroupIngressInternal:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref EcsSecurityGroup
+      IpProtocol: tcp
+      FromPort: !Ref InternalContainerPort
+      ToPort: !Ref InternalContainerPort
+      SourceSecurityGroupId: !Ref EcsSecurityGroup
+      Description: Service Connect internal traffic within ECS SG
+
   # ---------------------- ECR ----------------------
   EcrRepository:
     Type: AWS::ECR::Repository
@@ -225,6 +241,42 @@ Resources:
               }
             ]
           }
+
+  # 内部サービス(internal_main.py)用の別 ECR リポジトリ。設定は公開用と同一。
+  InternalEcrRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RepositoryName: !Sub "${ProjectName}-internal"
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      ImageTagMutability: IMMUTABLE
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep only the last 3 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 3
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+
+  # ---------------------- Service Discovery (Cloud Map) ----------------------
+  # ECS Service Connect が名前解決に使う名前空間。サービスを停止しても残すため
+  # IsEnabled 条件は付けない(再開時に同じ名前空間を再利用する)。
+  Namespace:
+    Type: AWS::ServiceDiscovery::HttpNamespace
+    Properties:
+      Name: !Sub "${ProjectName}.internal"
+      Description: Service Connect namespace for internal service-to-service communication
 
   # ---------------------- CloudWatch Logs ----------------------
   LogGroup:
@@ -293,12 +345,49 @@ Resources:
           PortMappings:
             - ContainerPort: !Ref ContainerPort
               Protocol: tcp
+          Environment:
+            # 内部サービスの呼び先(Service Connect の DNS エイリアス)
+            - Name: INTERNAL_SERVICE_URL
+              Value: !Sub "http://internal-api:${InternalContainerPort}"
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
+
+  # 内部サービス(internal_main.py)のタスク定義。
+  # Service Connect で公開するため PortMappings に Name / AppProtocol を付与する。
+  InternalTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${ProjectName}-internal-task"
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      RuntimePlatform:
+        OperatingSystemFamily: LINUX
+        CpuArchitecture: ARM64
+      ContainerDefinitions:
+        - Name: !Sub "${ProjectName}-internal-container"
+          Image: !Sub "${InternalEcrRepository.RepositoryUri}:${ImageTag}"
+          Essential: true
+          PortMappings:
+            # Service Connect は名前付きポート(Name)が必須。PortName として参照される。
+            - Name: internal
+              ContainerPort: !Ref InternalContainerPort
+              Protocol: tcp
+              AppProtocol: http
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: internal
 
   # ---------------------- ALB ----------------------
   LoadBalancer:
@@ -380,10 +469,50 @@ Resources:
             - !Ref PublicSubnet2
           SecurityGroups:
             - !Ref EcsSecurityGroup
+      # Service Connect のクライアントとして参加(自身は公開せず内部サービスを呼ぶだけ)
+      ServiceConnectConfiguration:
+        Enabled: true
+        Namespace: !GetAtt Namespace.Arn
       LoadBalancers:
         - ContainerName: !Sub "${ProjectName}-container"
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref TargetGroup
+
+  # 内部サービス。ALB には繋がず、Service Connect で internal-api:<port> として公開する。
+  InternalEcsService:
+    Type: AWS::ECS::Service
+    Condition: IsEnabled
+    Properties:
+      ServiceName: !Sub "${ProjectName}-internal-service"
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref InternalTaskDefinition
+      LaunchType: FARGATE
+      PlatformVersion: LATEST
+      DesiredCount: !Ref DesiredCount
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !Ref PublicSubnet1
+            - !Ref PublicSubnet2
+          SecurityGroups:
+            - !Ref EcsSecurityGroup
+      # Service Connect のサーバーとして名前付きポートを internal-api:<port> で公開
+      ServiceConnectConfiguration:
+        Enabled: true
+        Namespace: !GetAtt Namespace.Arn
+        Services:
+          - PortName: internal
+            DiscoveryName: internal
+            ClientAliases:
+              - Port: !Ref InternalContainerPort
+                DnsName: internal-api
 
 # ---------------------------------------------------------------------------
 # Outputs
@@ -395,8 +524,12 @@ Outputs:
     Value: !Sub "http://${LoadBalancer.DNSName}"
 
   EcrRepositoryUri:
-    Description: docker push 先の ECR リポジトリ URI
+    Description: docker push 先の ECR リポジトリ URI(公開サービス)
     Value: !GetAtt EcrRepository.RepositoryUri
+
+  InternalEcrRepositoryUri:
+    Description: docker push 先の ECR リポジトリ URI(内部サービス)
+    Value: !GetAtt InternalEcrRepository.RepositoryUri
 
   EcsClusterName:
     Description: ECS クラスター名
@@ -404,5 +537,10 @@ Outputs:
 
   EcsServiceName:
     Condition: IsEnabled
-    Description: ECS サービス名
+    Description: ECS サービス名(公開)
     Value: !GetAtt EcsService.Name
+
+  InternalEcsServiceName:
+    Condition: IsEnabled
+    Description: ECS サービス名(内部)
+    Value: !GetAtt InternalEcsService.Name
