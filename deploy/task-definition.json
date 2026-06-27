@@ -30,6 +30,14 @@
         {
           "name": "INTERNAL_SERVICE_URL",
           "value": "http://internal-api:8001"
+        },
+        {
+          "name": "SQS_QUEUE_URL",
+          "value": "https://sqs.${AWS_REGION}.amazonaws.com/${AWS_ACCOUNT_ID}/fastapi-ecs-queue"
+        },
+        {
+          "name": "AWS_REGION",
+          "value": "${AWS_REGION}"
         }
       ],
       "healthCheck": {

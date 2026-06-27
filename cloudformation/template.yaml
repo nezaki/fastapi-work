@@ -269,6 +269,31 @@ Resources:
             ]
           }
 
+  # ---------------------- SQS ----------------------
+  # SQS はリクエスト課金のみでアイドル固定費が無いため、停止/起動(IsEnabled)の対象に
+  # せず常設にする(ECR / Namespace / IAM と同様)。
+  #
+  # 受信失敗(可視性タイムアウト超過)が maxReceiveCount を超えたメッセージの退避先。
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-dlq"
+      MessageRetentionPeriod: 1209600 # 14日(退避メッセージは長めに保持)
+      SqsManagedSseEnabled: true
+
+  # 公開サービスが送信するメインキュー(Standard)。
+  AppQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-queue"
+      VisibilityTimeout: 30
+      ReceiveMessageWaitTimeSeconds: 20 # ロングポーリング(空受信を削減)
+      MessageRetentionPeriod: 345600 # 4日(既定)
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: 3
+
   # ---------------------- Service Discovery (Cloud Map) ----------------------
   # ECS Service Connect が名前解決に使う名前空間。サービスを停止しても残すため
   # IsEnabled 条件は付けない(再開時に同じ名前空間を再利用する)。
@@ -313,6 +338,16 @@ Resources:
             Principal:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
+      # 公開サービスが SQS にメッセージ送信するための最小権限(送信のみ)。
+      # 受信はコンシューマーを作らないため付与しない。DLQ はSQSが内部移送するため不要。
+      Policies:
+        - PolicyName: SqsSendPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt AppQueue.Arn
 
   # ---------------------- ECS ----------------------
   EcsCluster:
@@ -349,6 +384,12 @@ Resources:
             # 内部サービスの呼び先(Service Connect の DNS エイリアス)
             - Name: INTERNAL_SERVICE_URL
               Value: !Sub "http://internal-api:${InternalContainerPort}"
+            # 送信先 SQS キュー URL(!Ref はキュー URL を返す)
+            - Name: SQS_QUEUE_URL
+              Value: !Ref AppQueue
+            # boto3 のリージョン解決用(Fargate は AWS_REGION を自動設定しないため明示)
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -544,3 +585,15 @@ Outputs:
     Condition: IsEnabled
     Description: ECS サービス名(内部)
     Value: !GetAtt InternalEcsService.Name
+
+  AppQueueUrl:
+    Description: 公開サービスが送信する SQS キューの URL(受信確認に使用)
+    Value: !Ref AppQueue
+
+  AppQueueArn:
+    Description: メインキューの ARN
+    Value: !GetAtt AppQueue.Arn
+
+  DeadLetterQueueUrl:
+    Description: デッドレターキュー(DLQ)の URL
+    Value: !Ref DeadLetterQueue
