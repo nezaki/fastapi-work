@@ -2,7 +2,7 @@
 
 # ===== Builder: 依存解決と .venv 構築(uv はこのステージだけで使う) =====
 # 再現性のためタグ + ダイジェストで固定(ダイジェストはマルチアーキの index 指定)
-FROM python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061 AS builder
+FROM python:3.14-slim@sha256:63a4c7f612a00f92042cbdcc7cdc6a306f38485af0a200b9c89de7d9b1607d15 AS builder
 
 # uv バイナリを公式イメージからコピー(バージョン + ダイジェスト固定)
 COPY --from=ghcr.io/astral-sh/uv:0.11.21@sha256:ff07b86af50d4d9391d9daf4ff89ce427bc544f9aae87057e69a1cc0aa369946 /uv /uvx /bin/
@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
 # ===== Runtime: .venv だけを持つ最小実行イメージ(uv は同梱しない) =====
-FROM python:3.14-slim@sha256:44dd04494ee8f3b538294360e7c4b3acb87c8268e4d0a4828a6500b1eff50061 AS runtime
+FROM python:3.14-slim@sha256:63a4c7f612a00f92042cbdcc7cdc6a306f38485af0a200b9c89de7d9b1607d15 AS runtime
 
 # Python 設定:
 #  - 標準出力をバッファリングしない(ログを即座に出す)
